@@ -1,10 +1,9 @@
 /*************************************************
-**  jQuery Masonry version 1.1.2
+**  jQuery Masonry version 1.2.0 - corner mask branch
 **  copyright David DeSandro, licensed GPL & MIT
 **  http://desandro.com/resources/jquery-masonry
 **************************************************/
 ;(function($){  
-
 
     /*!
      * smartresize: debounced resize event for jQuery
@@ -45,8 +44,6 @@
     	return fn ? this.bind( "smartresize", fn ) : this.trigger( "smartresize", ["execAsap"] );
     };
 
-
-
     // masonry code begin
     $.fn.masonry = function(options, callback) { 
 
@@ -74,6 +71,21 @@
             }
         };
 
+				function placeCornerMask(setY, props, opts) {
+					if(props.$cornerBrick != undefined) {
+						var left = (props.colW * (props.colCount - props.cornerColumns)) + props.posLeft;
+            var position = {
+                left: left,
+                top: $(setY).last()
+            };
+
+            if( props.masoned && opts.animate ) {
+                props.$cornerBrick.animate( position, opts.duration, opts.easing );
+            } else {
+                props.$cornerBrick.css(position);
+            }
+					}
+				}
 
         function masonrySetup($wall, opts, props) {
             props.$bricks = opts.itemSelector == undefined ?
@@ -88,6 +100,12 @@
                 props.colW = opts.columnWidth;
             }
 
+						if (opts.cornerMaskSelector != undefined) {
+							props.$cornerBrick = opts.$brickParent.find(opts.cornerMaskSelector).first();
+							props.cornerColumns = Math.ceil(props.$cornerBrick.width() / props.colW);
+							props.cornerHeight = props.$cornerBrick.outerHeight(true);
+						}
+
             props.colCount = Math.floor( $wall.width() / props.colW ) ;
             props.colCount = Math.max( props.colCount, 1 );
         };
@@ -100,6 +118,9 @@
             if ( !props.masoned || opts.appendedContent != undefined ) {
                 // just the new bricks
                 props.$bricks.css( 'position', 'absolute' );
+								if(props.$cornerBrick != undefined) {
+	                props.$cornerBrick.css( 'position', 'absolute' );
+								}
             }
 
             // get top left position of where the bricks should be
@@ -121,55 +142,53 @@
                 */
                 for (i= $wall.data('masonry').colCount; i < props.colCount; i++) {
                     props.colY[i] = props.posTop;
-                };
-                
+                }
             } else {
                 props.colY = [];
-                for ( i=0; i < props.colCount; i++) {
+								for ( var i = 0; i < props.colCount; i++ ) {
+									if(props.$cornerBrick != undefined && i >= (props.colCount - props.cornerColumns)) {
+                    props.colY[i] = props.cornerHeight + props.posTop;
+									} else {
                     props.colY[i] = props.posTop;
-                }    
+									}
+								}
             }
-            
-            
-            // layout logic
-            if ( opts.singleMode ) {
-                props.$bricks.each(function(){
-                    var $brick = $(this);
-                    placeBrick($brick, props.colCount, props.colY, 1, props, opts);
-                });            
-            } else {
-                props.$bricks.each(function() {
-                    var $brick = $(this);
-                
-                    //how many columns does this brick span
-                    var colSpan = Math.ceil( $brick.outerWidth(true) / props.colW);
-                    colSpan = Math.min( colSpan, props.colCount );
 
-                    
-                    if ( colSpan == 1 ) {
-                        // if brick spans only one column, just like singleMode
-                        placeBrick($brick, props.colCount, props.colY, 1, props, opts);
-                    } else {
-                        // brick spans more than one column
+						var shouldPlaceCornerMask = function(index, props, opts) { return (index + 1 == props.colCount); }
+            props.$bricks.each(function(index){
+							var $brick = $(this);
+							if ( opts.singleMode ) {
+								placeBrick($brick, props.colCount, props.colY, 1, props, opts);
+							} else {
+								//how many columns does this brick span
+								var colSpan = Math.ceil( $brick.outerWidth(true) / props.colW);
+								colSpan = Math.min( colSpan, props.colCount );
+								
+								if ( colSpan == 1 ) {
+									// if brick spans only one column, just like singleMode
+									placeBrick($brick, props.colCount, props.colY, 1, props, opts);
+								} else {
+									// brick spans more than one column
 
-                        //how many different places could this brick fit horizontally
-                        var groupCount = props.colCount + 1 - colSpan; 
-                        var groupY = [0];
-                        // for each group potential horizontal position
-                        for ( i=0; i < groupCount; i++ ) {
-                            groupY[i] = 0;
-                            // for each column in that group
-                            for ( j=0; j < colSpan; j++ ) {
-                                // get the maximum column height in that group
-                                groupY[i] = Math.max( groupY[i], props.colY[i+j] );
-                            }
-                        }
-                
-                        placeBrick($brick, groupCount, groupY, colSpan, props, opts);
-                    }
-                }); //        /props.bricks.each(function() {
-            }  //         /layout logic
-        
+									//how many different places could this brick fit horizontally
+									var groupCount = props.colCount + 1 - colSpan; 
+									var groupY = [0];
+									// for each group potential horizontal position
+									for ( i=0; i < groupCount; i++ ) {
+										groupY[i] = 0;
+										// for each column in that group
+										for ( j=0; j < colSpan; j++ ) {
+											// get the maximum column height in that group
+											groupY[i] = Math.max( groupY[i], props.colY[i+j] );
+										}
+									}
+									placeBrick($brick, groupCount, groupY, colSpan, props, opts);
+								}
+							}
+							// place corner mask
+							if (shouldPlaceCornerMask(index, props, opts)) { placeCornerMask(props.colY, props, opts); }
+            }); //        /props.bricks.each(function() {
+  
             // set the height of the wall to the tallest column
             props.wallH = 0;
             for ( i=0; i < props.colCount; i++ ) {
@@ -181,17 +200,15 @@
                 $wall.animate(wallCSS, opts.duration, opts.easing);
             } else {
                 $wall.css(wallCSS);
-                
             }
 
-            // provide props.bricks as context for the callback
-            callback.call( props.$bricks );
-            
             // set all data so we can retrieve it for appended appendedContent
             //        or anyone else's crazy jquery fun
             $wall.data('masonry', props );
 
-
+            // provide props.bricks as context for the callback
+            callback.call( props.$bricks );
+            
         }; //  /masonryArrange function
 
 
@@ -270,7 +287,8 @@
             resizeable: true,
             animate: false,
             duration: 'normal',
-            easing: 'swing'
+            easing: 'swing',
+						cornerMaskSelector: undefined
         },
         colW: undefined,
         colCount: undefined,
@@ -281,7 +299,10 @@
         posLeft: 0,
         options: undefined,
         $bricks: undefined,
-        $brickParent: undefined
+        $brickParent: undefined,
+				$cornerBrick: undefined,
+				cornerColumns: 0,
+				cornerHeight: 0
     };
 
 })(jQuery);

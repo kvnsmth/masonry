@@ -154,7 +154,7 @@
 								}
             }
 
-						var shouldPlaceCornerMask = function(index, props, opts) { return (index + 1 == props.colCount); }
+						var shouldPlaceCornerMask = function(index, props, opts) { return (index + 1 == props.colCount || index + 1 == props.$bricks.size()); }
             props.$bricks.each(function(index){
 							var $brick = $(this);
 							if ( opts.singleMode ) {
